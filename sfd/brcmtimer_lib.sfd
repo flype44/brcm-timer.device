@@ -1,0 +1,16 @@
+==id $Id: brcmtimer_lib.sfd 0.9 $
+* "brcm-timer.device"
+==base _BrcmTimerBase
+==basetype struct Device *
+==libname brcmtimer.device
+==include <exec/types.h>
+==include <exec/devices.h>
+==include <devices/timer.h>
+==bias 42
+==public
+VOID BTIM_AddTime(struct timeval *dest, CONST struct timeval *src) (a0,a1)
+VOID BTIM_SubTime(struct timeval *dest, CONST struct timeval *src) (a0,a1)
+LONG BTIM_CmpTime(CONST struct timeval *dest, CONST struct timeval *src) (a0,a1)
+ULONG BTIM_ReadEClock(struct EClockVal *dest) (a0)
+VOID BTIM_GetSysTime(struct timeval *dest) (a0)
+==end
