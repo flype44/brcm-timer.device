@@ -48,12 +48,14 @@
 #define GIC400_MIN_VERSION  1
 #define GIC400_MIN_REVISION 3
 
-/* A nop after each access: Emu68 turns it into a barrier, so that its JIT does not merge two accesses to the registers */
+/* The JIT of Emu68 merges two moves that follow each other into one access of the ARM: another instruction after each access keeps them
+   apart. After a read, move.l Dn,Dn: it changes nothing and costs nothing measurable (a nop, a full barrier under Emu68, costs about 50 ns).
+   After a write, a nop: the barrier also makes sure the write reached the timer before what follows, such as reading CLO again. */
 static inline ULONG st_rd(ULONG reg)
 {
     ULONG value = *(volatile ULONG *)(ST_BASE + reg);
 
-    __asm__ volatile ("nop");
+    __asm__ volatile ("move.l %0,%0" : "+d"(value) : : "cc");
 
     return __builtin_bswap32(value);
 }

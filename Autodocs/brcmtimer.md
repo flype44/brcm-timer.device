@@ -71,7 +71,7 @@ The Amiga bus: BTIM_ReadEClock() and BTIM_GetSysTime() do not touch it. A reques
 
 ### Measured
 
-Raspberry Pi 4B, Emu68, idle machine, against timer.device 46.1. A wait of 3 ms ends late on average by 34 to 67 us depending on the unit (timer.device: 142 to 153 us, about 14 ms on UNIT_WAITUNTIL and UNIT_VBLANK). BTIM_ReadEClock() costs 0.29 us and BTIM_GetSysTime() 0.35 us (timer.device: about 20 us each, the CIAs are on the Amiga bus). A worst case depends on the scheduling of the tasks and varies from run to run. Details in docs/Benchmarks.md of the sources.
+Raspberry Pi 4B, Emu68, idle machine, against timer.device 46.1. A wait of 3 ms ends late on average by 34 to 67 us depending on the unit (timer.device: 142 to 153 us, about 14 ms on UNIT_WAITUNTIL and UNIT_VBLANK). BTIM_ReadEClock() costs 0.15 us and BTIM_GetSysTime() 0.25 us (timer.device: about 20 us each, the CIAs are on the Amiga bus). A worst case depends on the scheduling of the tasks and varies from run to run. Details in docs/Benchmarks.md of the sources.
 
 ### Versions
 
@@ -129,7 +129,7 @@ VOID BTIM_GetSysTime(struct timeval *dest);    /* a0 */
 |---|---|---|
 | `dest` | a0 | receives the system time |
 
-The system time of this device: the time it had when the device was loaded (that of timer.device) or the last TR_SETSYSTIME, plus the microseconds counted since. No lock: callable from any context, interrupts included; it costs about 0.35 us.
+The system time of this device: the time it had when the device was loaded (that of timer.device) or the last TR_SETSYSTIME, plus the microseconds counted since. No lock: callable from any context, interrupts included; it costs about 0.25 us.
 
 Unlike timer.device, two calls may return the same time: the value never goes back (unless the time is set back), but it only changes once a microsecond. Do not divide by a difference of two times without checking it, and do not use the time as a unique identifier.
 
@@ -147,7 +147,7 @@ ULONG BTIM_ReadEClock(struct EClockVal *dest);    /* a0 */
 |---|---|---|
 | `dest` | a0 | receives the 64-bit counter (ev_hi, ev_lo) |
 
-Reads the 64-bit counter of the system timer of the Pi, coherently (the high word read again when the low word wrapped). It counts microseconds since the Pi started and never goes back. Callable from any context, interrupts included; it costs about 0.3 us.
+Reads the 64-bit counter of the system timer of the Pi, coherently (the high word read again when the low word wrapped). It counts microseconds since the Pi started and never goes back. Callable from any context, interrupts included; it costs about 0.15 us.
 
 **Result**
 

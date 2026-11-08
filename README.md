@@ -8,8 +8,8 @@ It is a disk device next to the system `timer.device`, which it does not replace
 
 | | timer.device | brcm-timer.device |
 |---|---|---|
-| `ReadEClock()` | 20.08 µs | **0.29 µs** |
-| `GetSysTime()` | 20.13 µs | **0.35 µs** |
+| `ReadEClock()` | 20.08 µs | **0.15 µs** |
+| `GetSysTime()` | 20.13 µs | **0.25 µs** |
 | A 3 ms wait, average lateness | 142-153 µs (about 14 ms on `UNIT_WAITUNTIL`, `UNIT_VBLANK`) | **34-67 µs** on every unit |
 
 Method and all the measures: [docs/Benchmarks.md](docs/Benchmarks.md).

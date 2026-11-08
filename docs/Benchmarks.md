@@ -1,7 +1,8 @@
 # brcm-timer.device benchmarks
 
 `brcmtimer-stress` runs the same battery on `timer.device` and on `brcm-timer.device`, timed for both with the system timer of the Pi. The cost of a call
-comes from a run of version 0.9, the lateness and the load from a run of `R=2000`.
+comes from a run of 1.0-rc2, the lateness and the load from a run of `R=2000`. The reads of the time were measured on a build with nothing
+after a read; the `move.l Dn,Dn` of 1.0-rc3, timed alone, costs nothing more (1.0-rc2 put a `nop` after each read: 0.29 µs and 0.35 µs).
 
 | | |
 |---|---|
@@ -13,8 +14,8 @@ comes from a run of version 0.9, the lateness and the load from a run of `R=2000
 
 | Call | timer.device | brcm-timer.device | Factor |
 |---|---|---|---|
-| `ReadEClock()` | 20.08 µs | **0.29 µs** | 69 |
-| `GetSysTime()` | 20.13 µs | **0.35 µs** | 58 |
+| `ReadEClock()` | 20.08 µs | **0.15 µs** | 134 |
+| `GetSysTime()` | 20.13 µs | **0.25 µs** | 81 |
 | `AddTime()` / `SubTime()` / `CmpTime()` | 0.07 / 0.07 / 0.07 µs | 0.05 / 0.07 / 0.06 µs | about 1 |
 | `DoIO()` `TR_GETSYSTIME` | 25.78 µs | **0.46 µs** | 56 |
 | `DoIO()` `TR_ADDREQUEST`, no time | 167.74 µs | **26.28 µs** | 6.4 |
@@ -23,8 +24,9 @@ comes from a run of version 0.9, the lateness and the load from a run of `R=2000
 | `AbortIO()` + `WaitIO()` in that queue | 56.93 µs | **22.89 µs** | 2.5 |
 
 Reading the time on `timer.device` goes through the CIAs on the Amiga bus; `BTIM_ReadEClock()` and `BTIM_GetSysTime()` do not touch that bus. A request
-still does, less often: `Disable()` and `Enable()` write `INTENA`, and exec reads `INTENAR` and `INTREQR` when the interrupt comes. Each access to the
-registers of the system timer is followed by a `nop`, a barrier under Emu68: about 50 ns, three of them in a reading of the counter.
+still does, less often: `Disable()` and `Enable()` write `INTENA`, and exec reads `INTENAR` and `INTREQR` when the interrupt comes. Each read of a register
+of the system timer is followed by `move.l Dn,Dn`, which keeps the JIT of Emu68 from merging two reads and costs nothing measurable; each write by
+a `nop`, a barrier under Emu68 (about 50 ns).
 
 ## The lateness of a 3 ms wait
 
@@ -53,7 +55,7 @@ Six processes of priorities -2 to 5 and a queue of 128 requests at once, on rand
 
 ## Reading the time in a tight loop
 
-The system time changes once a microsecond and a call takes less: 57 % of the readings of a tight `BTIM_GetSysTime()` loop equal the one before. The reading
+The system time changes once a microsecond and a call takes less: 73 % of the readings of a tight `BTIM_GetSysTime()` loop equal the one before. The reading
 never goes back unless the time is set back.
 
 The two devices run on different crystals: they drift apart by about 9 ppm.
