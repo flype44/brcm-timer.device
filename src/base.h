@@ -48,20 +48,20 @@
 #define GIC400_MIN_VERSION  1
 #define GIC400_MIN_REVISION 3
 
+/* A nop after each access: Emu68 turns it into a barrier, so that its JIT does not merge two accesses to the registers */
 static inline ULONG st_rd(ULONG reg)
 {
-    ULONG value;
+    ULONG value = *(volatile ULONG *)(ST_BASE + reg);
 
-    __asm__ volatile ("move.l %1,%0" : "=d"(value) : "m"(*(volatile ULONG *)(ST_BASE + reg)));
+    __asm__ volatile ("nop");
 
     return __builtin_bswap32(value);
 }
 
 static inline void st_wr(ULONG reg, ULONG value)
 {
-    value = __builtin_bswap32(value);
-
-    __asm__ volatile ("move.l %1,%0" : "=m"(*(volatile ULONG *)(ST_BASE + reg)) : "d"(value));
+    *(volatile ULONG *)(ST_BASE + reg) = __builtin_bswap32(value);
+    __asm__ volatile ("nop");
 }
 
 /* Keeps the compiler from moving a memory access across it: bt_BaseTime and the others are not volatile, GCC moves their reads out of

@@ -1,6 +1,7 @@
 # brcm-timer.device benchmarks
 
-`brcmtimer-stress R=2000` runs the same battery on `timer.device` and on `brcm-timer.device`, timed for both with the system timer of the Pi.
+`brcmtimer-stress` runs the same battery on `timer.device` and on `brcm-timer.device`, timed for both with the system timer of the Pi. The cost of a call
+comes from a run of version 0.9, the lateness and the load from a run of `R=2000`.
 
 | | |
 |---|---|
@@ -12,17 +13,18 @@
 
 | Call | timer.device | brcm-timer.device | Factor |
 |---|---|---|---|
-| `ReadEClock()` | 20.10 µs | **0.14 µs** | 143 |
-| `GetSysTime()` | 20.18 µs | **0.23 µs** | 87 |
-| `AddTime()` / `SubTime()` / `CmpTime()` | 0.09 / 0.07 / 0.08 µs | 0.06 / 0.08 / 0.06 µs | about 1 |
-| `DoIO()` `TR_GETSYSTIME` | 25.70 µs | **0.37 µs** | 69 |
-| `DoIO()` `TR_ADDREQUEST`, no time | 164.83 µs | **22.51 µs** | 7.3 |
-| `SendIO()` + `AbortIO()` + `WaitIO()` | 122.72 µs | **28.67 µs** | 4.2 |
-| `SendIO()` into a queue growing to 128 | 62.64 µs | **6.25 µs** | 10 |
-| `AbortIO()` + `WaitIO()` in that queue | 58.33 µs | **22.78 µs** | 2.5 |
+| `ReadEClock()` | 20.08 µs | **0.29 µs** | 69 |
+| `GetSysTime()` | 20.13 µs | **0.35 µs** | 58 |
+| `AddTime()` / `SubTime()` / `CmpTime()` | 0.07 / 0.07 / 0.07 µs | 0.05 / 0.07 / 0.06 µs | about 1 |
+| `DoIO()` `TR_GETSYSTIME` | 25.78 µs | **0.46 µs** | 56 |
+| `DoIO()` `TR_ADDREQUEST`, no time | 167.74 µs | **26.28 µs** | 6.4 |
+| `SendIO()` + `AbortIO()` + `WaitIO()` | 119.56 µs | **29.64 µs** | 4.0 |
+| `SendIO()` into a queue growing to 128 | 62.33 µs | **6.54 µs** | 9.5 |
+| `AbortIO()` + `WaitIO()` in that queue | 56.93 µs | **22.89 µs** | 2.5 |
 
 Reading the time on `timer.device` goes through the CIAs on the Amiga bus; `BTIM_ReadEClock()` and `BTIM_GetSysTime()` do not touch that bus. A request
-still does, less often: `Disable()` and `Enable()` write `INTENA`, and exec reads `INTENAR` and `INTREQR` when the interrupt comes.
+still does, less often: `Disable()` and `Enable()` write `INTENA`, and exec reads `INTENAR` and `INTREQR` when the interrupt comes. Each access to the
+registers of the system timer is followed by a `nop`, a barrier under Emu68: about 50 ns, three of them in a reading of the counter.
 
 ## The lateness of a 3 ms wait
 
@@ -51,7 +53,7 @@ Six processes of priorities -2 to 5 and a queue of 128 requests at once, on rand
 
 ## Reading the time in a tight loop
 
-The system time changes once a microsecond and a call takes less: 73 % of the readings of a tight `BTIM_GetSysTime()` loop equal the one before. The reading
+The system time changes once a microsecond and a call takes less: 57 % of the readings of a tight `BTIM_GetSysTime()` loop equal the one before. The reading
 never goes back unless the time is set back.
 
 The two devices run on different crystals: they drift apart by about 9 ppm.

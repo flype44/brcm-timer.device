@@ -31,7 +31,7 @@ ecosystem with a real need for one, which also spares the Amiga bus. It does not
 ## Conventions
 
 - bebbo gcc 6.5, `-Os -m68040 -msmall-code`, no libgcc, no C library, no writable global data, zero warnings.
-- SoC registers through the `move.l` helpers only: 32-bit accesses, little endian swapped, peripherals at `0xf2000000` under Emu68.
+- SoC registers through `st_rd()` and `st_wr()` only: 32-bit volatile accesses, little endian swapped, a `nop` after each (Emu68 makes it a barrier: no merging by the JIT), peripherals at `0xf2000000` under Emu68.
 - A function is added at the end of the SFD, never inserted. One file per function. MPL-2.0 header.
 - English for code, comments, docs and commit messages. `Autodocs/` follows the layout of the NDK.
 
