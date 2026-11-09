@@ -69,7 +69,7 @@ One run of `brcmtimer-stress R=20` on 0.10, the match of the timer through `arm-
 |---|---|
 | Machine | Raspberry Pi 3 Model B, PiStorm32 lite, Emu68 1.0.7 |
 | System | CaffeineOS (exec 45.20), `timer.device` 39.4, `arm-intc.library` 0.3 |
-| Conditions | the network running (USB Ethernet, its interrupt on `arm-intc.library` too) |
+| Conditions | a busy machine, not idle |
 
 | Call | timer.device | brcm-timer.device | Factor |
 |---|---|---|---|

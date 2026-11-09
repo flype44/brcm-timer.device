@@ -79,7 +79,7 @@ The Amiga bus: BTIM_ReadEClock() and BTIM_GetSysTime() do not touch it. A reques
 
 Raspberry Pi 4B, Emu68, idle machine, against timer.device 46.1. A wait of 3 ms ends late on average by 34 to 67 us depending on the unit (timer.device: 142 to 153 us, about 14 ms on UNIT_WAITUNTIL and UNIT_VBLANK). BTIM_ReadEClock() costs 0.15 us and BTIM_GetSysTime() 0.25 us (timer.device: about 20 us each, the CIAs are on the Amiga bus).
 
-Raspberry Pi 3B, Emu68, the network running, against timer.device 39.4: 43 to 61 us late on average (timer.device: 174 to 183 us, about 14 ms on UNIT_WAITUNTIL and UNIT_VBLANK). BTIM_ReadEClock() costs 0.49 us and BTIM_GetSysTime() 0.69 us (timer.device: about 22 us).
+Raspberry Pi 3B, Emu68, a busy machine, against timer.device 39.4: 43 to 61 us late on average (timer.device: 174 to 183 us, about 14 ms on UNIT_WAITUNTIL and UNIT_VBLANK). BTIM_ReadEClock() costs 0.49 us and BTIM_GetSysTime() 0.69 us (timer.device: about 22 us).
 
 A worst case depends on the scheduling of the tasks and varies from run to run. Details in docs/Benchmarks.md of the sources.
 
