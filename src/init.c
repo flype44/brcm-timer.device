@@ -31,8 +31,8 @@ static void InitList(struct List *list)
 
 /* Called once by InitResident(), with the base that MakeLibrary() has just made. The system time starts as the one of timer.device
    (a program that uses both devices sees the same time at first; the two clocks then drift apart slowly), at the counter value of
-   now. Then the server of compare channel 1 (SPI 97, gic400.library): without it (not a BCM2711, or the interrupt in use) the device
-   is not made, and OpenDevice() fails. */
+   now. Then the server of compare channel 1 (SPI 97 through gic400.library on a BCM2711, line 33 through arm-intc.library on a BCM2837):
+   without it (another board, or the interrupt in use) the device is not made, and OpenDevice() fails. */
 struct BrcmTimerBase *BTIM_DevInit(
     REGARG(struct BrcmTimerBase *base, "d0"),
     REGARG(BPTR seglist, "a0"),

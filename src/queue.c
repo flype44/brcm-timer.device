@@ -9,8 +9,8 @@
 
 /*
     The timer queue. Every waiting request, whatever its unit, is in bt_Queue sorted by its deadline (a value of the 64-bit counter
-    of the system timer, kept in its tr_time). Compare channel 1 holds the low 32 bits of the first deadline; its match raises SPI 97,
-    whose server ends the requests that are due and arms the channel for the next one.
+    of the system timer, kept in its tr_time). Compare channel 1 holds the low 32 bits of the first deadline; its match raises SPI 97
+    of the GIC (Pi 4) or line 33 of arm-intc.library (Pi 3), whose server ends the requests that are due and arms the channel for the next one.
 
     The channel matches only when the counter equals it: a deadline that passes while it is being written would wait for the counter
     to wrap (71 minutes). So after each write the counter is read again, and a deadline less than two ticks ahead is waited for here
@@ -22,7 +22,9 @@
 #include <exec/interrupts.h>
 #include <exec/errors.h>
 #include <proto/exec.h>
+#include <utility/tagitem.h>
 #include <proto/gic400.h>
+#include <proto/arm-intc.h>
 
 #include <common/compiler.h>
 
@@ -159,18 +161,42 @@ void BTIM_Retime(
     BTIM_Kick(base);
 }
 
-/* The server of SPI 97 (is_Data in A1): the match of channel 1 cleared, then what is due ended and the next deadline armed */
-static void Server(REGARG(struct BrcmTimerBase *base, "a1"))
+/* The server of the match (is_Data in A1): the match of channel 1 cleared, then what is due ended and the next deadline armed */
+void BTIM_Server(REGARG(struct BrcmTimerBase *base, "a1"))
 {
     st_wr(ST_CS, ST_M1);
     BTIM_Kick(base);
 }
 
-/* At init: gic400.library (a BCM2711: version 0.1 refuses the boards without it), SPI 97 free, the server installed. gic400.library
-   unroutes every SPI when it starts but leaves the enables as they were, so after a reboot of the OS alone SPI 97 is still
-   enabled from the boot before: it is someone else's only when it is routed to a CPU too (a server of gic400.library is refused by
-   AddIntServerEx anyway) */
-BOOL BTIM_StartTimer(
+/* The entry for arm-intc.library: its dispatcher calls a server of line 33 only when the line rings, that is when channel 1 matched,
+   and reads the Z flag it returns: Z clear claims the interrupt (a server that leaves Z set would count as unclaimed, and enough of those
+   in a row trip the storm guard of the library). BTIM_Server() takes A1 as the dispatcher gives it; the moveq after it clears Z. */
+VOID BTIM_AicServer(void);
+__asm__(
+    "	.text\n"
+    "	.even\n"
+    "	.globl	_BTIM_AicServer\n"
+    "_BTIM_AicServer:\n"
+    "	jsr	_BTIM_Server\n"
+    "	moveq	#1,d0\n"
+    "	rts\n");
+
+/* The server, priority 0, named after the device */
+static void InitServer(
+    struct BrcmTimerBase *base,
+    VOID (*code)())
+{
+    base->bt_Server.is_Node.ln_Type = NT_INTERRUPT;
+    base->bt_Server.is_Node.ln_Pri = 0;
+    base->bt_Server.is_Node.ln_Name = base->bt_Device.dd_Library.lib_Node.ln_Name;
+    base->bt_Server.is_Data = base;
+    base->bt_Server.is_Code = code;
+}
+
+/* Pi 4: gic400.library, SPI 97. gic400.library unroutes every SPI when it starts but leaves the enables as they were, so after a reboot of
+   the OS alone SPI 97 is still enabled from the boot before: it is someone else's only when it is routed to a CPU too (a server of
+   gic400.library is refused by AddIntServerEx anyway). */
+static BOOL StartGic400(
     struct BrcmTimerBase *base)
 {
     struct ExecBase *SysBase = base->bt_SysBase;
@@ -191,11 +217,7 @@ BOOL BTIM_StartTimer(
         return FALSE;
     }
 
-    base->bt_Server.is_Node.ln_Type = NT_INTERRUPT;
-    base->bt_Server.is_Node.ln_Pri = 0;
-    base->bt_Server.is_Node.ln_Name = base->bt_Device.dd_Library.lib_Node.ln_Name;
-    base->bt_Server.is_Data = base;
-    base->bt_Server.is_Code = (VOID (*)())Server;
+    InitServer(base, (VOID (*)())BTIM_Server);
 
     /* level triggered, priority 0. A stale match (CS.M1 is set since the counter last passed the value of C1) calls the server once,
        which clears it: it is not cleared here, the interrupt could still be someone else's until this succeeds. */
@@ -210,20 +232,85 @@ BOOL BTIM_StartTimer(
     return TRUE;
 }
 
+/* Pi 3, Zero 2: arm-intc.library, line 33. The library does not open on a board without the ARM control block of the BCM2837 family,
+   so *board tells whether this is one. It leaves the lines found enabled as they were (a reboot of the OS alone leaves line 33 enabled
+   from the boot before): a line with a server is someone else's. AIC_AddIntServer() enables the line; a stale match calls the server
+   once, which clears it. */
+static BOOL StartArmIntc(
+    struct BrcmTimerBase *base,
+    BOOL *board)
+{
+    struct ExecBase *SysBase = base->bt_SysBase;
+    struct Library *ArmIntcBase;
+    struct TagItem tags[2];
+    ULONG servers = 1;
+
+    ArmIntcBase = OpenLibrary((CONST_STRPTR)"arm-intc.library", ARM_INTC_MIN_VERSION);
+    *board = (ArmIntcBase != NULL);
+    if (ArmIntcBase == NULL)
+    {
+        return FALSE;
+    }
+
+    tags[0].ti_Tag = AICI_Servers;
+    tags[0].ti_Data = (ULONG)&servers;
+    tags[1].ti_Tag = TAG_DONE;
+    AIC_QueryInfoTagList(ST_AIC_C1, tags);
+
+    InitServer(base, BTIM_AicServer);
+
+    /* too old, or the line belongs to someone else */
+    if ((ArmIntcBase->lib_Version == ARM_INTC_MIN_VERSION && ArmIntcBase->lib_Revision < ARM_INTC_MIN_REVISION) ||
+        servers != 0 || AIC_AddIntServer(ST_AIC_C1, &base->bt_Server) != AICERR_OK)
+    {
+        CloseLibrary(ArmIntcBase);
+        return FALSE;
+    }
+
+    base->bt_ArmIntcBase = ArmIntcBase;
+
+    return TRUE;
+}
+
+/* At init: the controller of the board, then the server of compare channel 1. arm-intc.library first: it reads the device tree and
+   does not open on a board without the ARM control block of the BCM2837 family (a Pi 4: then one look into LIBS:, at load only).
+   gic400.library is never opened on a Pi 3, even when arm-intc.library is too old or line 33 taken: a copy on disk older than the
+   device tree check of 1.9 would open there and its calls would touch a GIC that does not exist. */
+BOOL BTIM_StartTimer(
+    struct BrcmTimerBase *base)
+{
+    BOOL board;
+
+    if (StartArmIntc(base, &board))
+    {
+        return TRUE;
+    }
+
+    return !board && StartGic400(base);
+}
+
 /* At expunge, the queue empty (every request belongs to an opener, and nobody has the device open) */
 void BTIM_StopTimer(
     struct BrcmTimerBase *base)
 {
     struct ExecBase *SysBase = base->bt_SysBase;
     struct Library *GIC400_Base = base->bt_Gic400Base;
+    struct Library *ArmIntcBase = base->bt_ArmIntcBase;
 
-    if (GIC400_Base == NULL)
+    if (GIC400_Base != NULL)
     {
-        return;
+        RemIntServerEx(ST_SPI_C1, &base->bt_Server);
+        st_wr(ST_CS, ST_M1);
+        CloseLibrary(GIC400_Base);
+        base->bt_Gic400Base = NULL;
     }
 
-    RemIntServerEx(ST_SPI_C1, &base->bt_Server);
-    st_wr(ST_CS, ST_M1);
-    CloseLibrary(GIC400_Base);
-    base->bt_Gic400Base = NULL;
+    if (ArmIntcBase != NULL)
+    {
+        /* the last server of the line out: the library disables it */
+        AIC_RemIntServer(ST_AIC_C1, &base->bt_Server);
+        st_wr(ST_CS, ST_M1);
+        CloseLibrary(ArmIntcBase);
+        base->bt_ArmIntcBase = NULL;
+    }
 }

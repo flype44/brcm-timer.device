@@ -29,7 +29,7 @@
 #define BTIM_VERSION        0
 #endif
 #ifndef BTIM_REVISION
-#define BTIM_REVISION       9
+#define BTIM_REVISION       10
 #endif
 
 #define BTIM_UNITS          5               /* UNIT_MICROHZ, UNIT_VBLANK, UNIT_ECLOCK, UNIT_WAITUNTIL, UNIT_WAITECLOCK */
@@ -43,10 +43,15 @@
 #define ST_C1               0x10            /* compare channel 1: C0 and C2 belong to the firmware */
 #define ST_M1               (1UL << 1)      /* CS: channel 1 matched; write one to clear it and the interrupt line */
 #define ST_SPI_C1           97              /* GIC: VC peripheral IRQs from SPI 96, channel 1 is VC IRQ 1 */
+#define ST_AIC_C1           33              /* arm-intc.library: GPU line 1 (bank 1, line 1) */
 
 /* gic400.library 1.3: the first that finds the GIC through the interrupt-parent of the device tree */
 #define GIC400_MIN_VERSION  1
 #define GIC400_MIN_REVISION 3
+
+/* arm-intc.library 0.3: the ARM interrupt controller of the BCM2837 (Pi 3, Zero 2), where there is no GIC; the first published */
+#define ARM_INTC_MIN_VERSION  0
+#define ARM_INTC_MIN_REVISION 3
 
 /* The JIT of Emu68 merges two moves that follow each other into one access of the ARM: another instruction after each access keeps them
    apart. After a read, move.l Dn,Dn: it changes nothing and costs nothing measurable (a nop, a full barrier under Emu68, costs about 50 ns).
@@ -99,9 +104,10 @@ struct BrcmTimerBase
     struct BTimUnit         bt_Units[BTIM_UNITS];
 
     /* The requests waiting, sorted by deadline, all units together; compare channel 1 is armed for the first one. Changed with the
-       interrupts disabled, or in the server of SPI 97. */
+       interrupts disabled, or in the server of the match. */
     struct List             bt_Queue;
-    struct Library *        bt_Gic400Base;
+    struct Library *        bt_Gic400Base;  /* the match through the GIC (Pi 4)... */
+    struct Library *        bt_ArmIntcBase; /* ...or through arm-intc.library (Pi 3): one of the two */
     struct Interrupt        bt_Server;
 };
 
@@ -124,6 +130,7 @@ void BTIM_StopTimer(struct BrcmTimerBase *base);
 void BTIM_Insert(struct BrcmTimerBase *base, struct timerequest *tr);
 void BTIM_Kick(struct BrcmTimerBase *base);
 void BTIM_Retime(struct BrcmTimerBase *base, LONG dhi, ULONG dlo);
+void BTIM_Server(REGARG(struct BrcmTimerBase *base, "a1"));
 
 /* Calls, in the order of sfd/brcmtimer_lib.sfd */
 VOID L_BTIM_AddTime(REGARG(struct timeval *dest, "a0"), REGARG(const struct timeval *src, "a1"), REGARG(struct BrcmTimerBase *base, "a6"));

@@ -19,7 +19,7 @@ It is a disk device (DEVS:brcm-timer.device) next to the system timer.device, wh
 
 ### Using it
 
-Open BRCMTIMERNAME (<devices/brcmtimer.h>) with the units and the struct timerequest of timer.device. If OpenDevice() fails (not a Pi 4, or an older Emu68), open timer.device as before.
+Open BRCMTIMERNAME (<devices/brcmtimer.h>) with the units and the struct timerequest of timer.device. If OpenDevice() fails (another board, the interrupt library of the board missing, or the interrupt in use), open timer.device as before.
 
 The functions are BTIM_AddTime(), BTIM_SubTime(), BTIM_CmpTime(), BTIM_ReadEClock() and BTIM_GetSysTime() with BrcmTimerBase = the io_Device of an opened request (<proto/brcmtimer.h>). They sit at the offsets of timer.device, so TimerBase may also point at this device.
 
@@ -65,19 +65,30 @@ The system time starts as the system time of timer.device when the device is loa
 
 ### Requirements
 
-A Raspberry Pi 4, 400 or CM4 (BCM2711) under Emu68 with gic400.library 1.3 or later in its ROM. The device uses compare channel 1 of the system timer and its interrupt (GIC SPI 97); channels 0 and 2 belong to the VideoCore firmware. If the interrupt is already in use (a server of gic400.library on it, or enabled and routed to a CPU by someone else), or on other boards, the device is not loaded and OpenDevice() fails.
+Emu68 on a Raspberry Pi of one of these families, with the interrupt library of its SoC:
+
+BCM2711 (Pi 4, 400, CM4): gic400.library 1.3 or later, in the ROM of Emu68. The match of the timer is GIC SPI 97.
+
+BCM2837 (Pi 3, Zero 2, CM3): arm-intc.library 0.3 or later, in LIBS:. The match of the timer is line 33 of the ARM interrupt controller (VideoCore interrupt 1). gic400.library is never opened on these boards.
+
+The device uses compare channel 1 of the system timer; channels 0 and 2 belong to the VideoCore firmware. It is not loaded, and OpenDevice() fails, on other boards, when the library of the board is missing or too old, or when the interrupt is in use: on a BCM2711 a server of gic400.library on SPI 97, or SPI 97 enabled and routed to a CPU by someone else; on a BCM2837 a server of arm-intc.library on line 33.
 
 The Amiga bus: BTIM_ReadEClock() and BTIM_GetSysTime() do not touch it. A request does, less than with timer.device: Disable() and Enable() write INTENA, ReplyMsg() goes through them too, and exec reads INTENAR and INTREQR when the interrupt comes.
 
 ### Measured
 
-Raspberry Pi 4B, Emu68, idle machine, against timer.device 46.1. A wait of 3 ms ends late on average by 34 to 67 us depending on the unit (timer.device: 142 to 153 us, about 14 ms on UNIT_WAITUNTIL and UNIT_VBLANK). BTIM_ReadEClock() costs 0.15 us and BTIM_GetSysTime() 0.25 us (timer.device: about 20 us each, the CIAs are on the Amiga bus). A worst case depends on the scheduling of the tasks and varies from run to run. Details in docs/Benchmarks.md of the sources.
+Raspberry Pi 4B, Emu68, idle machine, against timer.device 46.1. A wait of 3 ms ends late on average by 34 to 67 us depending on the unit (timer.device: 142 to 153 us, about 14 ms on UNIT_WAITUNTIL and UNIT_VBLANK). BTIM_ReadEClock() costs 0.15 us and BTIM_GetSysTime() 0.25 us (timer.device: about 20 us each, the CIAs are on the Amiga bus).
+
+Raspberry Pi 3B, Emu68, the network running, against timer.device 39.4: 43 to 61 us late on average (timer.device: 174 to 183 us, about 14 ms on UNIT_WAITUNTIL and UNIT_VBLANK). BTIM_ReadEClock() costs 0.49 us and BTIM_GetSysTime() 0.69 us (timer.device: about 22 us).
+
+A worst case depends on the scheduling of the tasks and varies from run to run. Details in docs/Benchmarks.md of the sources.
 
 ### Versions
 
 | Version | Date | Changes |
 |---|---|---|
 | 0.9 | 7.11.2026 | First release candidate of 1.0. |
+| 0.10 | 9.11.2026 | Raspberry Pi 3, Zero 2 and CM3, through arm-intc.library. |
 
 ## BTIM_AddTime
 

@@ -1,10 +1,13 @@
 # brcm-timer.device
 
-A timer for the drivers and programs of the AmigaOS + Emu68 + Raspberry Pi 4 ecosystem that have a real need for one. It has the
+A timer for the drivers and programs of the AmigaOS + Emu68 + Raspberry Pi ecosystem that have a real need for one. It has the
 interface of `timer.device` (units, commands, `struct timerequest`, functions) on the system timer of the Pi: a 64-bit counter at
-1 MHz and a compare channel, through `gic400.library`. Reading the time does not touch the Amiga bus.
+1 MHz and a compare channel, through `gic400.library` on a Pi 4 and `arm-intc.library` on a Pi 3. Reading the time does not touch
+the Amiga bus.
 
 It is a disk device next to the system `timer.device`, which it does not replace or change.
+
+On a Raspberry Pi 4:
 
 | | timer.device | brcm-timer.device |
 |---|---|---|
@@ -12,14 +15,20 @@ It is a disk device next to the system `timer.device`, which it does not replace
 | `GetSysTime()` | 20.13 µs | **0.25 µs** |
 | A 3 ms wait, average lateness | 142-153 µs (about 14 ms on `UNIT_WAITUNTIL`, `UNIT_VBLANK`) | **34-67 µs** on every unit |
 
-Method and all the measures: [docs/Benchmarks.md](docs/Benchmarks.md).
+Method and all the measures, the Pi 3 too: [docs/Benchmarks.md](docs/Benchmarks.md).
 
 **Status:** release candidate of 1.0. The interface may still change until 1.0.
 
 ## Requirements
 
-A Raspberry Pi 4, 400 or CM4 under Emu68, with `gic400.library` 1.3 or later in its ROM. `OpenDevice()` fails elsewhere: a program can
-then open `timer.device`.
+Emu68 on a Raspberry Pi, with the interrupt library of its SoC:
+
+| SoC | Boards | Library |
+|---|---|---|
+| BCM2711 | Pi 4, 400, CM4 | `gic400.library` 1.3 or later, in the ROM of Emu68 |
+| BCM2837 | Pi 3, Zero 2, CM3 | [`arm-intc.library`](https://github.com/flype44/arm-intc.library) 0.3 or later, in `LIBS:` |
+
+`OpenDevice()` fails elsewhere, or when the library is missing: a program can then open `timer.device`.
 
 ## Using it
 

@@ -39,7 +39,8 @@ int main(void)
     tr.tr_node.io_Message.mn_ReplyPort = port;
     tr.tr_node.io_Message.mn_Length = sizeof(tr);
 
-    /* It fails on a board other than a Raspberry Pi 4: a program may then open timer.device */
+    /* It fails on a board other than a Raspberry Pi 4 or 3, or without the interrupt library of the board: a program may then open
+       timer.device */
     if (OpenDevice((CONST_STRPTR)BRCMTIMERNAME, UNIT_MICROHZ, (struct IORequest *)&tr, 0) == 0)
     {
         BrcmTimerBase = tr.tr_node.io_Device;

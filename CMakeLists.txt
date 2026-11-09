@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.30.0)
-project(brcm-timer.device VERSION 0.9.0)
+project(brcm-timer.device VERSION 0.10.0)
 
 # "make install" gathers the products in build/install/: devs/ the device for DEVS:, sdk/ what a developer needs, tools/ the test programs
 # for the Amiga
@@ -16,6 +16,16 @@ sfdc(sfd/brcmtimer_lib.sfd)
 # gic400.library, in the ROM of Emu68: its SFD and libraries/gic400.h come from the submodule
 sfdc(gic400.library/sfd/gic400.sfd)
 target_include_directories(gic400 INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/gic400.library/include)
+
+# arm-intc.library (Pi 3, Zero 2): its SFD and libraries/arm-intc.h, from its sources (-DARM_INTC_DIR=<path>)
+set(ARM_INTC_DIR ${CMAKE_SOURCE_DIR}/arm-intc.library CACHE PATH "the sources of arm-intc.library")
+if(NOT EXISTS ${ARM_INTC_DIR}/sfd/arm-intc_lib.sfd)
+    message(FATAL_ERROR "no ${ARM_INTC_DIR}/sfd/arm-intc_lib.sfd: -DARM_INTC_DIR=<path of arm-intc.library>")
+endif()
+# sfdc() takes a path relative to this folder
+file(RELATIVE_PATH ARM_INTC_SFD ${CMAKE_CURRENT_SOURCE_DIR} ${ARM_INTC_DIR}/sfd/arm-intc_lib.sfd)
+sfdc(${ARM_INTC_SFD})
+target_include_directories(arm_intc INTERFACE ${ARM_INTC_DIR}/include)
 
 add_executable(brcm-timer.device
     src/main.c
@@ -47,7 +57,7 @@ target_compile_definitions(brcm-timer.device PRIVATE
 
 target_include_directories(brcm-timer.device PRIVATE include src)
 target_link_options(brcm-timer.device PRIVATE -ffreestanding -nostdlib -nostartfiles -s -Wl,-e,__start)
-target_link_libraries(brcm-timer.device brcmtimer gic400)
+target_link_libraries(brcm-timer.device brcmtimer gic400 arm_intc)
 
 # The conformance and performance test against timer.device (CLI, no C library): -O2, at -Os GCC may call memcpy() for the larger initialisers
 add_executable(brcmtimer-stress
@@ -72,6 +82,6 @@ install(FILES examples/brcmtimer-example.c DESTINATION sdk/examples)
 install(FILES sfd/brcmtimer_lib.sfd DESTINATION sdk/sfd)
 install(FILES Autodocs/brcmtimer.doc Autodocs/brcmtimer.md DESTINATION sdk/Autodocs)
 install(FILES include/devices/brcmtimer.h DESTINATION sdk/include/devices)
-# gic400.library is generated next to brcmtimer for the build: it has its own SDK
-install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include/ DESTINATION sdk/include PATTERN "gic400*" EXCLUDE)
-install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/FD/ DESTINATION sdk/FD PATTERN "gic400*" EXCLUDE)
+# gic400.library and arm-intc.library are generated next to brcmtimer for the build: they have their own SDK
+install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include/ DESTINATION sdk/include PATTERN "gic400*" EXCLUDE PATTERN "arm-intc*" EXCLUDE)
+install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/FD/ DESTINATION sdk/FD PATTERN "gic400*" EXCLUDE PATTERN "arm-intc*" EXCLUDE)
